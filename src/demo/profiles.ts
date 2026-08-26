@@ -50,7 +50,7 @@ export function getInternalDemoProfiles(): InternalDemoProfile[] {
       assistantLabel: "VULN-CONTEXT",
       flow: "chat",
       systemPrompt: VULNERABLE_CONTEXT_SYSTEM_PROMPT,
-      instructionMode: "privileged_system",
+      instructionMode: "concatenated_user",
       grantedTools: [],
     },
     {
@@ -59,7 +59,7 @@ export function getInternalDemoProfiles(): InternalDemoProfile[] {
       assistantLabel: "VULN-RECORDS",
       flow: "chat",
       systemPrompt: VULNERABLE_RECORDS_SYSTEM_PROMPT,
-      instructionMode: "privileged_system",
+      instructionMode: "concatenated_user",
       grantedTools: VULNERABLE_RECORD_TOOLS,
     },
     {
