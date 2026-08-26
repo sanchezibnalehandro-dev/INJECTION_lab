@@ -1,0 +1,26 @@
+node_modules/
+.next/
+.npm-cache/
+.cache/
+.turbo/
+.vercel/
+out/
+coverage/
+reports/
+playwright-report/
+test-results/
+.playwright/
+.browser-profile*/
+browser-profile*/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.env*.local
+
+# Local reference materials
+скрины с промптами/
+AI_Prompt_Injection_Architectures(1).pptx
+5,5_prompt_injection_techniques_in_15_minutes_by_Brian_Vermeer_Full.txt
+*.png
