@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { AttackPreset, AttackSuite, AttackSuiteId, ChatResponse, ConversationMessage, DebugEvent, DemoProfile, DemoProfileId, DisclosureEvaluation, DocumentPresetId, ModelDefinition, ProviderDefinition } from "@/lib/domain/types";
 import { StageView } from "./StageView";
 
@@ -50,6 +50,7 @@ export function InjectionLab() {
   const [activePresetId, setActivePresetId] = useState<string>();
   const [multiTurnStepIndex, setMultiTurnStepIndex] = useState(0);
   const [evaluation, setEvaluation] = useState<DisclosureEvaluation>();
+  const requestInFlight = useRef(false);
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => setIsHydrated(true), 0);
@@ -66,7 +67,10 @@ export function InjectionLab() {
       })
       .then((nextConfig) => {
         setConfig(nextConfig);
-        const provider = nextConfig.providers.find((candidate) => candidate.id === "openai") ?? nextConfig.providers[0];
+        const provider = nextConfig.providers.find((candidate) => candidate.id === "gigachat" && candidate.configured)
+          ?? nextConfig.providers.find((candidate) => candidate.configured)
+          ?? nextConfig.providers.find((candidate) => candidate.id === "gigachat")
+          ?? nextConfig.providers[0];
         const suite = nextConfig.suites.find((candidate) => candidate.id === nextConfig.defaultSuiteId) ?? nextConfig.suites[0];
         const firstPreset = suite?.presets[0];
         setProviderId(provider?.id ?? "");
@@ -117,7 +121,7 @@ export function InjectionLab() {
   }
 
   function preparePreset(preset: AttackPreset) {
-    if (suiteId !== "exploratory" || preset.profileId !== profileId) clearConversation();
+    clearConversation();
     setActivePresetId(preset.id);
     setProfileId(preset.profileId);
     setMultiTurnStepIndex(0);
@@ -147,10 +151,21 @@ export function InjectionLab() {
   function chooseModel(nextModelId: string) {
     const nextModel = activeProvider?.models.find((model) => model.id === nextModelId);
     if (suiteId === "vulnerable-lab" && profileId === "vulnerable-records" && nextModel?.capabilities.tools !== "native") {
-      setModelId(nativeModelId() ?? nextModelId);
+      const resolvedModelId = nativeModelId() ?? nextModelId;
+      if (resolvedModelId !== modelId) resetScenarioRun();
+      setModelId(resolvedModelId);
       return;
     }
+    if (nextModelId !== modelId) resetScenarioRun();
     setModelId(nextModelId);
+  }
+
+  function chooseProvider(nextProviderId: string) {
+    const nextProvider = config.providers.find((provider) => provider.id === nextProviderId);
+    if (!nextProvider || nextProvider.id === providerId) return;
+    resetScenarioRun();
+    setProviderId(nextProvider.id);
+    setModelId(nextProvider.defaultModelId);
   }
 
   function insertNextMultiTurnStep() {
@@ -168,6 +183,8 @@ export function InjectionLab() {
   }
 
   async function sendChat(payload: ChatPayload) {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setIsSending(true);
     setError(undefined);
     setLastAction({ kind: "chat", payload });
@@ -182,11 +199,14 @@ export function InjectionLab() {
     } catch (sendError: unknown) {
       recordError(sendError);
     } finally {
+      requestInFlight.current = false;
       setIsSending(false);
     }
   }
 
   async function analyzeDocument(payload: DocumentPayload) {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setIsSending(true);
     setError(undefined);
     setLastAction({ kind: "document", payload });
@@ -200,6 +220,7 @@ export function InjectionLab() {
     } catch (sendError: unknown) {
       recordError(sendError);
     } finally {
+      requestInFlight.current = false;
       setIsSending(false);
     }
   }
@@ -237,6 +258,12 @@ export function InjectionLab() {
     setDraft(activePreset?.flow === "single_turn" ? activePreset.prompt : "");
   }
 
+  function resetScenarioRun() {
+    clearConversation();
+    setMultiTurnStepIndex(0);
+    setDraft(activePreset?.flow === "single_turn" ? activePreset.prompt : "");
+  }
+
   const toolStatus = !hasGrantedTools ? "NONE GRANTED" : toolsAvailable ? "NATIVE" : "UNAVAILABLE";
 
   if (configError) {
@@ -248,6 +275,8 @@ export function InjectionLab() {
       suite={activeSuite}
       preset={activePreset}
       profile={activeProfile}
+      providers={config.providers}
+      provider={activeProvider}
       models={activeProvider?.models ?? []}
       modelId={modelId}
       history={history}
@@ -260,6 +289,7 @@ export function InjectionLab() {
       error={error}
       requiresNativeTools={requiresNativeTools}
       hasConfiguredNativeModel={hasConfiguredNativeModel}
+      onChooseProvider={chooseProvider}
       onChooseModel={chooseModel}
       onChoosePreset={preparePreset}
       onReset={resetContext}
@@ -278,12 +308,17 @@ export function InjectionLab() {
           <button className="active-provider" type="button" onClick={() => setViewMode("stage")}>STAGE MODE</button>
           <span className="demo-badge"><i /> DEMO DATA ONLY</span>
           <label className="selector-label">Suite
-            <select aria-label="Набор экспериментов" value={suiteId} onChange={(event) => chooseSuite(event.target.value as AttackSuiteId)}>
+            <select aria-label="Набор экспериментов" value={suiteId} onChange={(event) => chooseSuite(event.target.value as AttackSuiteId)} disabled={isSending}>
               {config.suites.map((suite) => <option key={suite.id} value={suite.id}>{suite.title}</option>)}
             </select>
           </label>
+          <label className="selector-label">Provider
+            <select aria-label="Провайдер" value={providerId} onChange={(event) => chooseProvider(event.target.value)} disabled={isSending}>
+              {config.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.displayName}{provider.configured ? "" : " · NOT CONFIGURED"}</option>)}
+            </select>
+          </label>
           <label className="selector-label">Model
-            <select aria-label="Модель" value={modelId} onChange={(event) => chooseModel(event.target.value)}>
+            <select aria-label="Модель" value={modelId} onChange={(event) => chooseModel(event.target.value)} disabled={isSending}>
               {(activeProvider?.models ?? []).map((model) => <option key={model.id} value={model.id}>{model.displayName}</option>)}
             </select>
           </label>
@@ -306,7 +341,7 @@ export function InjectionLab() {
             <div className="capability-strip" aria-label="Режимы модели">
               <span>TOOLS <b>{toolStatus}</b></span><span>FLOW <b>{activePreset?.flow?.toUpperCase() ?? "—"}</b></span><span>OUTPUT <b>RAW</b></span>
             </div>
-            <button className="reset-button" type="button" onClick={resetContext}>↻ RESET CONTEXT</button>
+            <button className="reset-button" type="button" onClick={resetContext} disabled={isSending}>↻ RESET CONTEXT</button>
             <p className="microcopy">Profile resolves system, tools and fixtures server-side. Browser cannot override them.</p>
           </aside>
 
@@ -346,7 +381,7 @@ export function InjectionLab() {
         <section className="preset-panel panel">
           <div className="panel-heading"><span>03</span><h2>{activeSuite?.title ?? "Test sequence"}</h2><p>{activeSuite?.description}</p></div>
           <div className="preset-grid">
-            {(activeSuite?.presets ?? []).map((preset, index) => <button key={preset.id} type="button" className={`preset ${activePresetId === preset.id ? "is-active" : ""} ${preset.category}`} onClick={() => preparePreset(preset)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{preset.title}</strong><small>{preset.shortDescription}</small></button>)}
+            {(activeSuite?.presets ?? []).map((preset, index) => <button key={preset.id} type="button" className={`preset ${activePresetId === preset.id ? "is-active" : ""} ${preset.category}`} onClick={() => preparePreset(preset)} disabled={isSending}><span>{String(index + 1).padStart(2, "0")}</span><strong>{preset.title}</strong><small>{preset.shortDescription}</small></button>)}
           </div>
           {activePreset?.multiTurnSteps && <div className="multiturn-control"><div><span>STEP {Math.min(multiTurnStepIndex + 1, activePreset.multiTurnSteps.length)} / {activePreset.multiTurnSteps.length}</span><p>{nextMultiTurnStep || "Все exact turns подготовлены. Reset вернёт progression к первому шагу."}</p></div><button type="button" onClick={insertNextMultiTurnStep} disabled={!nextMultiTurnStep}>INSERT NEXT EXACT TURN</button></div>}
         </section>

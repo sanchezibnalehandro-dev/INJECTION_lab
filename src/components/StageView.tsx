@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AttackPreset, AttackSuite, ConversationMessage, DebugEvent, DemoProfile, DisclosureEvaluation, ModelDefinition } from "@/lib/domain/types";
+import type { AttackPreset, AttackSuite, ConversationMessage, DebugEvent, DemoProfile, DisclosureEvaluation, ModelDefinition, ProviderDefinition } from "@/lib/domain/types";
 import styles from "./StageView.module.css";
 
 type DrawerKind = "system" | "tools" | "why" | "debug";
@@ -12,6 +12,8 @@ type StageViewProps = {
   suite?: AttackSuite;
   preset?: AttackPreset;
   profile?: DemoProfile;
+  providers: ProviderDefinition[];
+  provider?: ProviderDefinition;
   models: ModelDefinition[];
   modelId: string;
   history: ConversationMessage[];
@@ -24,6 +26,7 @@ type StageViewProps = {
   error?: string;
   requiresNativeTools: boolean;
   hasConfiguredNativeModel: boolean;
+  onChooseProvider: (providerId: string) => void;
   onChooseModel: (modelId: string) => void;
   onChoosePreset: (preset: AttackPreset) => void;
   onReset: () => void;
@@ -49,10 +52,18 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
 }
 
+function summarizeToolResult(result: unknown): string {
+  if (Array.isArray(result)) return `${result.length} synthetic records returned`;
+  if (result && typeof result === "object") return `${Object.keys(result).length} synthetic values returned`;
+  return "Synthetic result returned";
+}
+
 export function StageView({
   suite,
   preset,
   profile,
+  providers,
+  provider,
   models,
   modelId,
   history,
@@ -65,6 +76,7 @@ export function StageView({
   error,
   requiresNativeTools,
   hasConfiguredNativeModel,
+  onChooseProvider,
   onChooseModel,
   onChoosePreset,
   onReset,
@@ -90,9 +102,8 @@ export function StageView({
     }
   }
 
-  const visibleToolEvents = debugEvents
-    .filter((event) => event.type === "tool_requested" || event.type === "tool_executed" || event.type === "tool_result")
-    .slice(-4);
+  const lastToolRequest = [...debugEvents].reverse().find((event) => event.type === "tool_requested");
+  const lastToolResult = [...debugEvents].reverse().find((event) => event.type === "tool_result");
 
   const isMultiTurn = preset?.flow === "multi_turn";
   const isDocument = preset?.flow === "document";
@@ -106,6 +117,7 @@ export function StageView({
   const primaryDisabled = !isHydrated
     || isSending
     || !preset
+    || !provider?.configured
     || (requiresNativeTools && !toolsAvailable)
     || (isMultiTurn ? !nextMultiTurnStep : hasRun);
 
@@ -120,11 +132,11 @@ export function StageView({
           : "RUN ATTACK →";
 
   const chooseRelative = useCallback((offset: number) => {
-    if (!presets.length) return;
+    if (isSending || !presets.length) return;
     const nextIndex = activeIndex + offset;
     if (nextIndex < 0 || nextIndex >= presets.length) return;
     onChoosePreset(presets[nextIndex]);
-  }, [activeIndex, onChoosePreset, presets]);
+  }, [activeIndex, isSending, onChoosePreset, presets]);
 
   const runPrimary = useCallback(() => {
     if (primaryDisabled || !preset) return;
@@ -150,7 +162,7 @@ export function StageView({
 
       if (/^[1-9]$/.test(event.key)) {
         const index = Number(event.key) - 1;
-        if (presets[index]) {
+        if (!isSending && presets[index]) {
           event.preventDefault();
           onChoosePreset(presets[index]);
         }
@@ -167,7 +179,12 @@ export function StageView({
             runPrimary();
           }
           break;
-        case "r": event.preventDefault(); onReset(); break;
+        case "r":
+          if (!isSending) {
+            event.preventDefault();
+            onReset();
+          }
+          break;
         case "d": event.preventDefault(); setDrawer("debug"); break;
         case "s": event.preventDefault(); setDrawer("system"); break;
         case "t": event.preventDefault(); setDrawer("tools"); break;
@@ -177,11 +194,22 @@ export function StageView({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [chooseRelative, drawer, isMultiTurn, onChoosePreset, onReset, presets, runPrimary]);
+  }, [chooseRelative, drawer, isMultiTurn, isSending, onChoosePreset, onReset, presets, runPrimary]);
 
   const disclosureObserved = evaluation?.disclosureObserved ?? false;
-  const canaryState = evaluation ? (evaluation.canaryLeaked ? "DETECTED" : "NO") : "NOT RUN";
-  const employeeState = evaluation ? (evaluation.employeeRecordLeaked ? "DETECTED" : "NO") : "NOT RUN";
+  const canaryState = evaluation ? (evaluation.canaryLeaked ? "YES" : "NO") : "NOT RUN";
+  const employeeState = evaluation ? (evaluation.employeeRecordLeaked ? "YES" : "NO") : "NOT RUN";
+  const runStatus = !isHydrated
+    ? "LOADING CONFIG"
+    : !provider?.configured
+      ? "PROVIDER NOT CONFIGURED"
+      : isSending
+        ? "RUNNING"
+        : error
+          ? "REQUEST ERROR"
+          : evaluation
+            ? "RESULT READY"
+            : "READY";
 
   return (
     <main className={styles.shell}>
@@ -195,11 +223,17 @@ export function StageView({
           <h1>{preset?.title ?? "Loading scenario…"}</h1>
         </div>
         <div className={styles.topActions}>
+          <label className={styles.modelSelect}>Provider
+            <select value={provider?.id ?? ""} onChange={(event) => onChooseProvider(event.target.value)} aria-label="Провайдер для демонстрации" disabled={isSending}>
+              {providers.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.displayName}{candidate.configured ? "" : " · NOT CONFIGURED"}</option>)}
+            </select>
+          </label>
           <label className={styles.modelSelect}>Model
-            <select value={modelId} onChange={(event) => onChooseModel(event.target.value)} aria-label="Модель для демонстрации">
+            <select value={modelId} onChange={(event) => onChooseModel(event.target.value)} aria-label="Модель для демонстрации" disabled={isSending}>
               {models.map((model) => <option key={model.id} value={model.id}>{model.displayName}</option>)}
             </select>
           </label>
+          <span className={`${styles.stageStatus} ${error || !provider?.configured ? styles.stageStatusError : isSending ? styles.stageStatusBusy : ""}`}><i />{runStatus}</span>
           <button className={styles.modeButton} type="button" onClick={onOpenLab}>LAB MODE</button>
         </div>
       </header>
@@ -236,12 +270,12 @@ export function StageView({
           </div>
           <div className={styles.toolFlow}>
             <span className={styles.toolFlowLabel}>TOOL FLOW</span>
-            {visibleToolEvents.length === 0 ? <span className={styles.noToolFlow}>{profile?.tools.length ? "No tool call in this run yet." : "No tools granted for this scenario."}</span> : visibleToolEvents.map((event, index) => {
-              if (event.type === "tool_requested") return <span key={`${event.at}-${index}`} className={styles.toolCard}>REQUESTED · {event.tool}</span>;
-              if (event.type === "tool_executed") return <span key={`${event.at}-${index}`} className={styles.toolCard}>EXECUTING · {event.tool}</span>;
-              if (event.type === "tool_result") return <span key={`${event.at}-${index}`} className={`${styles.toolCard} ${styles.toolCardResult}`}>RESULT RETURNED · {event.tool}</span>;
-              return null;
-            })}
+            {!lastToolRequest || lastToolRequest.type !== "tool_requested" ? <span className={styles.noToolFlow}>{profile?.tools.length ? "No tool call in this run yet." : "No tools granted for this scenario."}</span> : <div className={styles.toolSequence}>
+              <span className={styles.toolNode}>MODEL</span><b>↓</b>
+              <span className={styles.toolNode}>{lastToolRequest.tool}({lastToolRequest.argumentsJson === "{}" ? "{}" : lastToolRequest.argumentsJson})</span><b>↓</b>
+              <span className={`${styles.toolNode} ${styles.toolNodeResult}`}>TOOL RESULT<small>{lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : "Waiting for result"}</small></span><b>↓</b>
+              <span className={styles.toolNode}>FINAL RESPONSE</span>
+            </div>}
           </div>
         </article>
       </section>
@@ -252,21 +286,23 @@ export function StageView({
           <small>CURRENT RUN</small>
           <strong>{evaluation ? (disclosureObserved ? "DISCLOSURE DETECTED IN THIS RUN" : "NO MATCHED DISCLOSURE IN FINAL RESPONSE") : "NOT RUN YET"}</strong>
         </div>
-        <div className={`${styles.verdictItem} ${evaluation?.canaryLeaked ? styles.verdictItemLeak : ""}`}><small>CANARY</small><strong>{canaryState}</strong></div>
-        {profile?.id === "vulnerable-records" && <div className={`${styles.verdictItem} ${evaluation?.employeeRecordLeaked ? styles.verdictItemLeak : ""}`}><small>EMPLOYEE RECORD</small><strong>{employeeState}</strong></div>}
+        <div className={`${styles.verdictItem} ${evaluation?.canaryLeaked ? styles.verdictItemLeak : ""}`}><small>CANARY LEAKED</small><strong>{canaryState}</strong></div>
+        {profile?.id === "vulnerable-records" && <div className={`${styles.verdictItem} ${evaluation?.employeeRecordLeaked ? styles.verdictItemLeak : ""}`}><small>EMPLOYEE RECORD LEAKED</small><strong>{employeeState}</strong></div>}
       </section>
 
       <nav className={styles.controls} aria-label="Управление демонстрацией">
-        <button className={styles.controlButton} type="button" onClick={() => chooseRelative(-1)} disabled={activeIndex <= 0}>← PREV</button>
-        <button className={`${styles.controlButton} ${styles.dangerButton}`} type="button" onClick={onReset}>RESET <span className={styles.hotkey}>R</span></button>
+        <button className={styles.controlButton} type="button" onClick={() => chooseRelative(-1)} disabled={isSending || activeIndex <= 0}>← PREV</button>
+        <button className={`${styles.controlButton} ${styles.dangerButton}`} type="button" onClick={onReset} disabled={isSending}>RESET <span className={styles.hotkey}>R</span></button>
         <button className={`${styles.controlButton} ${styles.primary}`} type="button" onClick={runPrimary} disabled={primaryDisabled}>{primaryLabel}</button>
-        <button className={styles.controlButton} type="button" onClick={() => chooseRelative(1)} disabled={activeIndex >= presets.length - 1}>NEXT →</button>
+        <button className={styles.controlButton} type="button" onClick={() => chooseRelative(1)} disabled={isSending || activeIndex >= presets.length - 1}>NEXT →</button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("system")}>SYSTEM <span className={styles.hotkey}>S</span></button>
+        <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("tools")}>TOOLS <span className={styles.hotkey}>T</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("why")}>WHY? <span className={styles.hotkey}>W</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("debug")}>DEBUG <span className={styles.hotkey}>D</span></button>
       </nav>
 
       {requiresNativeTools && !toolsAvailable && <div className={styles.errorBanner}><strong>MODEL CAPABILITY</strong><span>{hasConfiguredNativeModel ? "Этот сценарий требует native tools. Выберите tool-capable model." : "No native tool-capable model is configured. This scenario is blocked without emulation."}</span></div>}
+      {provider && !provider.configured && <div className={styles.errorBanner}><strong>{provider.displayName.toUpperCase()}</strong><span>{provider.configurationHint}</span></div>}
       {error && <div className={styles.errorBanner}><strong>REQUEST FAILED</strong><span>{error}</span><button type="button" onClick={onRetry} disabled={isSending}>Retry</button></div>}
 
       {drawer && <div className={styles.drawerBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer(undefined); }}>

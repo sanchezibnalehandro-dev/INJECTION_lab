@@ -46,14 +46,18 @@ test("source contains no GigaChat TLS bypass", () => {
   assert.equal(/rejectUnauthorized\s*:\s*false/.test(source), false);
 });
 
-test("OpenAI-only active catalog exposes the six comparison profiles", () => {
+test("active catalog exposes GigaChat-2 and the six OpenAI comparison profiles", () => {
   const providers = getProviderCatalog();
-  assert.deepEqual(providers.map((provider) => provider.id), ["openai"]);
-  assert.equal(providers[0].defaultModelId, "gpt-4o-mini");
-  assert.deepEqual(providers[0].models.map((model) => model.id), [...OPENAI_COMPARISON_MODEL_IDS]);
+  assert.deepEqual(providers.map((provider) => provider.id), ["gigachat", "openai"]);
+  assert.equal(providers[0].defaultModelId, "GigaChat-2");
+  assert.deepEqual(providers[0].models.map((model) => model.id), ["GigaChat-2"]);
+  assert.equal(providers[0].models[0].capabilities.tools, "native");
+  assert.equal(typeof providers[0].configured, "boolean");
+  assert.equal(providers[1].defaultModelId, "gpt-4o-mini");
+  assert.deepEqual(providers[1].models.map((model) => model.id), [...OPENAI_COMPARISON_MODEL_IDS]);
   assert.equal(findProviderModel("deepseek", "anything"), undefined);
-  assert.equal(providers[0].models.find((model) => model.id === "gpt-3.5-turbo")?.capabilities.tools, "unavailable");
-  assert.equal(providers[0].models.find((model) => model.id === "gpt-4o-mini")?.capabilities.tools, "native");
+  assert.equal(providers[1].models.find((model) => model.id === "gpt-3.5-turbo")?.capabilities.tools, "unavailable");
+  assert.equal(providers[1].models.find((model) => model.id === "gpt-4o-mini")?.capabilities.tools, "native");
 });
 
 test("configured OpenAI default remains selectable when additional models are limited", () => {
@@ -62,7 +66,7 @@ test("configured OpenAI default remains selectable when additional models are li
   process.env.OPENAI_MODEL = "gpt-4o-mini";
   process.env.OPENAI_MODELS = "gpt-4o";
   try {
-    const provider = getProviderCatalog()[0];
+    const provider = getProviderCatalog().find((candidate) => candidate.id === "openai")!;
     assert.equal(provider.defaultModelId, "gpt-4o-mini");
     assert.deepEqual(provider.models.map((model) => model.id), ["gpt-4o", "gpt-4o-mini"]);
   } finally {
@@ -94,7 +98,7 @@ function adapterRequestFor(model: ModelDefinition, provider: ProviderDefinition)
 }
 
 test("OpenAI adapter omits tools for gpt-3.5-turbo and sends native tools for supported profiles", () => {
-  const provider = getProviderCatalog()[0];
+  const provider = getProviderCatalog().find((candidate) => candidate.id === "openai")!;
   for (const model of provider.models) {
     const request = buildOpenAIResponsesRequest(adapterRequestFor(model, provider));
     if (model.id === "gpt-3.5-turbo") {
@@ -106,15 +110,15 @@ test("OpenAI adapter omits tools for gpt-3.5-turbo and sends native tools for su
 });
 
 test("OpenAI adapter omits the tools field when a profile grants no tools", () => {
-  const provider = getProviderCatalog()[0];
+  const provider = getProviderCatalog().find((candidate) => candidate.id === "openai")!;
   const model = provider.models.find((candidate) => candidate.id === "gpt-4o-mini")!;
   const request = buildOpenAIResponsesRequest({ ...adapterRequestFor(model, provider), grantedTools: [], metadata: { ...adapterRequestFor(model, provider).metadata, tools: [] } });
   assert.equal("tools" in request, false);
 });
 
-test("OpenAI-only UI derives the visible tool state from the selected model", () => {
+test("UI derives tool state from the selected model and exposes provider switching", () => {
   const client = readFileSync(join(root, "src", "components", "InjectionLab.tsx"), "utf8");
   assert.equal(client.includes("activeModel?.capabilities.tools === \"native\""), true);
   assert.equal(client.includes('"UNAVAILABLE"'), true);
-  assert.equal(client.includes("chooseProvider"), false);
+  assert.equal(client.includes("chooseProvider"), true);
 });

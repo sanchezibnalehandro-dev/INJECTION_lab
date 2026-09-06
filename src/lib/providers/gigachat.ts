@@ -11,11 +11,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) return cachedToken.value;
-  const clientId = process.env.GIGACHAT_CLIENT_ID;
-  const clientSecret = process.env.GIGACHAT_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new ProviderConfigurationError("GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET must be configured on the server.");
   const oauthUrl = process.env.GIGACHAT_OAUTH_URL || "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
-  const authorizationKey = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const authorizationKey = resolveGigaChatAuthorizationKey();
   const response = await fetch(oauthUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", RqUID: crypto.randomUUID(), Authorization: `Basic ${authorizationKey}` },
@@ -29,9 +26,20 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.value;
 }
 
-function toMessages(messages: InternalMessage[]) {
+export function resolveGigaChatAuthorizationKey(env: NodeJS.ProcessEnv = process.env): string {
+  const directKey = env.GIGACHAT_AUTHORIZATION_KEY?.trim();
+  if (directKey) return directKey;
+  const clientId = env.GIGACHAT_CLIENT_ID;
+  const clientSecret = env.GIGACHAT_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new ProviderConfigurationError("GIGACHAT_AUTHORIZATION_KEY or GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET must be configured on the server.");
+  }
+  return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+}
+
+export function buildGigaChatMessages(messages: InternalMessage[]) {
   return messages.map((message) => {
-    if (message.role === "tool") return { role: "function", content: message.content, functions_state_id: message.providerState?.functions_state_id };
+    if (message.role === "tool") return { role: "function", content: message.content, name: message.name };
     if (message.toolCalls?.length) {
       const call = message.toolCalls[0];
       let args: unknown = {};
@@ -40,6 +48,18 @@ function toMessages(messages: InternalMessage[]) {
     }
     return { role: message.role, content: message.content };
   });
+}
+
+export function buildGigaChatRequestBody(input: ProviderTurnRequest): Record<string, unknown> {
+  const request: Record<string, unknown> = {
+    model: input.model.id,
+    messages: buildGigaChatMessages(input.messages),
+  };
+  if (input.grantedTools.length > 0) {
+    request.function_call = "auto";
+    request.functions = input.grantedTools.map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }));
+  }
+  return request;
 }
 
 export const gigaChatAdapter: LLMProviderAdapter = {
@@ -52,12 +72,7 @@ export const gigaChatAdapter: LLMProviderAdapter = {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        model: input.model.id,
-        messages: toMessages(input.messages),
-        function_call: "auto",
-        functions: input.grantedTools.map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema })),
-      }),
+      body: JSON.stringify(buildGigaChatRequestBody(input)),
     });
     const body = asRecord(await response.json().catch(() => ({})));
     if (!response.ok) throw new Error(`GigaChat request failed with HTTP ${response.status}.`);
@@ -77,6 +92,7 @@ export const gigaChatAdapter: LLMProviderAdapter = {
       toolCalls,
       latencyMs: Date.now() - startedAt,
       finishReason: typeof choice.finish_reason === "string" ? choice.finish_reason : undefined,
+      resolvedModelId: typeof body.model === "string" ? body.model : undefined,
       usage: Object.keys(usage).length ? { inputTokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined, outputTokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined, totalTokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined } : undefined,
     };
   },

@@ -88,7 +88,7 @@ test("request construction preserves the intended vulnerable boundaries", () => 
   assert.deepEqual(directMessages, [{ role: "user", content: `${VULNERABLE_DIRECT_INSTRUCTIONS}\n\n${EXPECTED_PROMPTS["vulnerable-direct-override"]}` }]);
   assert.equal(directMessages.some((message) => message.role === "system"), false);
 
-  const provider = getProviderCatalog()[0];
+  const provider = getProviderCatalog().find((candidate) => candidate.id === "openai")!;
   const model = provider.models.find((candidate) => candidate.id === "gpt-4o-mini") ?? provider.models.find((candidate) => candidate.capabilities.tools === "native")!;
   const metadata = {
     systemLoaded: false,

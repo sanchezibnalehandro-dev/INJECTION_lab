@@ -39,6 +39,8 @@ export interface ProviderDefinition {
   displayName: string;
   defaultModelId: string;
   models: ModelDefinition[];
+  configured: boolean;
+  configurationHint: string;
 }
 
 export interface NormalizedToolCall {

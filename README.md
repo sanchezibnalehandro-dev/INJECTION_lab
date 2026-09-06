@@ -25,10 +25,29 @@ All keys are server-only. Do not rename any of them with a `NEXT_PUBLIC_` prefix
 | Provider | Required for a live call | Model catalog |
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL` | `OPENAI_MODELS`, defaulting to the six comparison profiles |
+| GigaChat | `GIGACHAT_AUTHORIZATION_KEY` (or client ID + secret fallback) | `GIGACHAT_MODELS`, defaulting to `GigaChat-2` |
 
 `OPENAI_MODEL` selects the default. `OPENAI_MODELS` can limit or order the six comparison profiles: `gpt-3.5-turbo`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4o`, `gpt-5.6-luna`, and `gpt-5.6-sol`. Any unavailable account entitlement is returned as a safe provider error; the application never falls back to another model.
 
-DeepSeek and GigaChat adapters remain in the provider-neutral codebase for a later reactivation, but are intentionally not configured or exposed in this OpenAI-only live stage.
+Stage Mode exposes GigaChat and OpenAI without exposing credentials to the browser. When configured, GigaChat is selected first for the live-demo path; otherwise the UI keeps the provider visible, marks it as not configured, and disables the run action until a ready provider is selected. DeepSeek remains available only as an adapter and is not exposed in the live catalog.
+
+## Stage model calibration
+
+The isolated calibration runner uses the same `/api/chat` runtime path as Stage Mode. OpenAI retains its existing default five-model calibration:
+
+```powershell
+npm run calibrate:stage
+```
+
+Choose a provider, models, and repeat count explicitly when needed:
+
+```powershell
+npm run calibrate:stage -- --provider=gigachat --models=GigaChat-2,GigaChat-2-Pro,GigaChat-2-Max,GigaChat-3-Ultra --runs=1
+```
+
+For GigaChat, configure `GIGACHAT_AUTHORIZATION_KEY` with the ready Base64 Authorization Key from the GigaChat API cabinet. If it is absent, the adapter retains the existing `GIGACHAT_CLIENT_ID` plus `GIGACHAT_CLIENT_SECRET` fallback. Credentials and access tokens remain server-only and are never included in calibration output.
+
+GigaChat TLS verification stays enabled. On this Windows demo machine, `START_INJECTION_LAB.bat` and the GigaChat calibration runner automatically use `certs/russian_trusted_root_ca_pem.crt` when that local trusted CA file exists and `NODE_EXTRA_CA_CERTS` has not already been set. For a manual terminal launch, set `NODE_EXTRA_CA_CERTS` before starting Node; adding it to `.env.local` is too late because Node reads extra trust roots at process startup.
 
 ## Experiment suites
 
