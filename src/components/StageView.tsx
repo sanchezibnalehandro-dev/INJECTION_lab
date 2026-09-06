@@ -23,7 +23,6 @@ type StageViewProps = {
   isHydrated: boolean;
   error?: string;
   requiresNativeTools: boolean;
-  toolsAvailable: boolean;
   hasConfiguredNativeModel: boolean;
   onChooseModel: (modelId: string) => void;
   onChoosePreset: (preset: AttackPreset) => void;
@@ -65,7 +64,6 @@ export function StageView({
   isHydrated,
   error,
   requiresNativeTools,
-  toolsAvailable,
   hasConfiguredNativeModel,
   onChooseModel,
   onChoosePreset,
@@ -79,6 +77,8 @@ export function StageView({
   const presets = suite?.presets ?? EMPTY_PRESETS;
   const foundIndex = presets.findIndex((candidate) => candidate.id === preset?.id);
   const activeIndex = foundIndex >= 0 ? foundIndex : 0;
+  const activeModel = models.find((model) => model.id === modelId);
+  const toolsAvailable = activeModel?.capabilities.tools === "native" && Boolean(profile?.tools.length);
   const assistantMessages = history.filter((message) => message.role === "assistant");
   const hasRun = assistantMessages.length > 0;
   const messageRows = history.filter((message) => message.role !== "tool");
@@ -262,7 +262,6 @@ export function StageView({
         <button className={`${styles.controlButton} ${styles.primary}`} type="button" onClick={runPrimary} disabled={primaryDisabled}>{primaryLabel}</button>
         <button className={styles.controlButton} type="button" onClick={() => chooseRelative(1)} disabled={activeIndex >= presets.length - 1}>NEXT →</button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("system")}>SYSTEM <span className={styles.hotkey}>S</span></button>
-        <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("tools")}>TOOLS <span className={styles.hotkey}>T</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("why")}>WHY? <span className={styles.hotkey}>W</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("debug")}>DEBUG <span className={styles.hotkey}>D</span></button>
       </nav>
