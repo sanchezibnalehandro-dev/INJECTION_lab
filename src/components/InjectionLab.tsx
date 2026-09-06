@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { AttackPreset, AttackSuite, AttackSuiteId, ChatResponse, ConversationMessage, DebugEvent, DemoProfile, DemoProfileId, DisclosureEvaluation, DocumentPresetId, ModelDefinition, ProviderDefinition } from "@/lib/domain/types";
+import { StageView } from "./StageView";
 
 type LabConfig = {
   providers: ProviderDefinition[];
@@ -14,6 +15,7 @@ type ChatPayload = { providerId: string; modelId: string; profileId: DemoProfile
 type DocumentPayload = { providerId: string; modelId: string; presetId: DocumentPresetId };
 type LastAction = { kind: "chat"; payload: ChatPayload } | { kind: "document"; payload: DocumentPayload };
 type ApiError = { error?: { code?: string; message?: string } };
+type ViewMode = "stage" | "lab";
 
 const EMPTY_CONFIG: LabConfig = { providers: [], defaultSuiteId: "vulnerable-lab", suites: [], profiles: [] };
 const FIREFOX_BUTTON_STATE_RESET = { autoComplete: "off" } as const;
@@ -31,6 +33,7 @@ function formatEvent(event: DebugEvent): string {
 
 export function InjectionLab() {
   const [isHydrated, setIsHydrated] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("stage");
   const [config, setConfig] = useState<LabConfig>(EMPTY_CONFIG);
   const [configError, setConfigError] = useState<string>();
   const [providerId, setProviderId] = useState("");
@@ -213,6 +216,15 @@ export function InjectionLab() {
     void analyzeDocument({ providerId, modelId, presetId: activePreset.id });
   }
 
+  function runStagePrompt(content: string, advanceMultiTurn: boolean) {
+    if (!isHydrated || !content.trim() || !providerId || !modelId || isSending || (requiresNativeTools && !toolsAvailable)) return;
+    setDraft(content);
+    if (advanceMultiTurn && activePreset?.multiTurnSteps) {
+      setMultiTurnStepIndex((current) => Math.min(current + 1, activePreset.multiTurnSteps!.length));
+    }
+    void sendChat({ providerId, modelId, profileId, messages: [...history, { role: "user", content }] });
+  }
+
   function retryLastAction() {
     if (!lastAction) return;
     if (lastAction.kind === "chat") void sendChat(lastAction.payload);
@@ -227,11 +239,43 @@ export function InjectionLab() {
 
   const toolStatus = !hasGrantedTools ? "NONE GRANTED" : toolsAvailable ? "NATIVE" : "UNAVAILABLE";
 
+  if (configError) {
+    return <main className="lab-shell"><section className="fatal-state">{configError}</section></main>;
+  }
+
+  if (viewMode === "stage") {
+    return <StageView
+      suite={activeSuite}
+      preset={activePreset}
+      profile={activeProfile}
+      models={activeProvider?.models ?? []}
+      modelId={modelId}
+      history={history}
+      debugEvents={debugEvents}
+      evaluation={evaluation}
+      multiTurnStepIndex={multiTurnStepIndex}
+      nextMultiTurnStep={nextMultiTurnStep}
+      isSending={isSending}
+      isHydrated={isHydrated}
+      error={error}
+      requiresNativeTools={requiresNativeTools}
+      hasConfiguredNativeModel={hasConfiguredNativeModel}
+      onChooseModel={chooseModel}
+      onChoosePreset={preparePreset}
+      onReset={resetContext}
+      onRunDocument={runDocument}
+      onRunPrompt={runStagePrompt}
+      onRetry={retryLastAction}
+      onOpenLab={() => setViewMode("lab")}
+    />;
+  }
+
   return (
     <main className="lab-shell">
       <header className="topbar">
         <div className="brand-lockup"><span className="brand-mark">IL</span><div><p className="eyebrow">LIVE DEMONSTRATION HARNESS</p><h1>INJECTION LAB</h1></div></div>
         <div className="header-controls">
+          <button className="active-provider" type="button" onClick={() => setViewMode("stage")}>STAGE MODE</button>
           <span className="demo-badge"><i /> DEMO DATA ONLY</span>
           <label className="selector-label">Suite
             <select aria-label="Набор экспериментов" value={suiteId} onChange={(event) => chooseSuite(event.target.value as AttackSuiteId)}>
@@ -246,7 +290,7 @@ export function InjectionLab() {
         </div>
       </header>
 
-      {configError ? <section className="fatal-state">{configError}</section> : <>
+      <>
         <section className="workspace-grid">
           <aside className="configuration panel">
             <div className="panel-heading"><span>01</span><h2>Configuration</h2></div>
@@ -311,7 +355,7 @@ export function InjectionLab() {
           <button className="debug-toggle" type="button" onClick={() => setDebugOpen((open) => !open)}><span><b>04</b> DEBUG / TOOL CALLS</span><span>{debugOpen ? "COLLAPSE −" : `EXPAND + · ${debugEvents.length} EVENTS`}</span></button>
           {debugOpen && <div className="debug-events">{debugEvents.length === 0 ? <p className="debug-empty">Здесь появятся sanitized normalized request metadata, запросы инструментов и результаты tool flow.</p> : debugEvents.map((event, index) => <article key={`${event.at}-${index}`} className={`debug-event event-${event.type}`}><time>{new Date(event.at).toLocaleTimeString("ru-RU")}</time><pre>{formatEvent(event)}</pre></article>)}</div>}
         </section>
-      </>}
+      </>
       <footer>SERVER-SIDE PROFILES · VERBATIM BRIAN SOURCE · SYNTHETIC FIXTURES · NO PERSISTENCE · LIVE RESULT ≠ SECURITY VERDICT</footer>
     </main>
   );
