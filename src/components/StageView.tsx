@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AttackPreset, AttackSuite, ConversationMessage, DebugEvent, DemoProfile, DisclosureEvaluation, ModelDefinition } from "@/lib/domain/types";
 import styles from "./StageView.module.css";
 
 type DrawerKind = "system" | "tools" | "why" | "debug";
+
+const EMPTY_PRESETS: AttackPreset[] = [];
 
 type StageViewProps = {
   suite?: AttackSuite;
@@ -21,6 +23,7 @@ type StageViewProps = {
   isHydrated: boolean;
   error?: string;
   requiresNativeTools: boolean;
+  toolsAvailable: boolean;
   hasConfiguredNativeModel: boolean;
   onChooseModel: (modelId: string) => void;
   onChoosePreset: (preset: AttackPreset) => void;
@@ -62,6 +65,7 @@ export function StageView({
   isHydrated,
   error,
   requiresNativeTools,
+  toolsAvailable,
   hasConfiguredNativeModel,
   onChooseModel,
   onChoosePreset,
@@ -72,17 +76,19 @@ export function StageView({
   onOpenLab,
 }: StageViewProps) {
   const [drawer, setDrawer] = useState<DrawerKind>();
-  const presets = suite?.presets ?? [];
-  const activeIndex = Math.max(0, presets.findIndex((candidate) => candidate.id === preset?.id));
+  const presets = suite?.presets ?? EMPTY_PRESETS;
+  const foundIndex = presets.findIndex((candidate) => candidate.id === preset?.id);
+  const activeIndex = foundIndex >= 0 ? foundIndex : 0;
   const assistantMessages = history.filter((message) => message.role === "assistant");
   const hasRun = assistantMessages.length > 0;
   const messageRows = history.filter((message) => message.role !== "tool");
-  const latestAssistantIndex = useMemo(() => {
-    for (let index = messageRows.length - 1; index >= 0; index -= 1) {
-      if (messageRows[index].role === "assistant") return index;
+  let latestAssistantIndex = -1;
+  for (let index = messageRows.length - 1; index >= 0; index -= 1) {
+    if (messageRows[index].role === "assistant") {
+      latestAssistantIndex = index;
+      break;
     }
-    return -1;
-  }, [messageRows]);
+  }
 
   const visibleToolEvents = debugEvents
     .filter((event) => event.type === "tool_requested" || event.type === "tool_executed" || event.type === "tool_result")
@@ -100,7 +106,7 @@ export function StageView({
   const primaryDisabled = !isHydrated
     || isSending
     || !preset
-    || (requiresNativeTools && !hasConfiguredNativeModel)
+    || (requiresNativeTools && !toolsAvailable)
     || (isMultiTurn ? !nextMultiTurnStep : hasRun);
 
   const primaryLabel = isSending
@@ -109,16 +115,18 @@ export function StageView({
       ? "ANALYZE DOCUMENT →"
       : isMultiTurn
         ? `SEND TURN ${Math.min(multiTurnStepIndex + 1, Math.max(multiTurnTotal, 1))} →`
-        : "RUN ATTACK →";
+        : preset?.category === "control"
+          ? "RUN CONTROL →"
+          : "RUN ATTACK →";
 
-  function chooseRelative(offset: number) {
+  const chooseRelative = useCallback((offset: number) => {
     if (!presets.length) return;
     const nextIndex = activeIndex + offset;
     if (nextIndex < 0 || nextIndex >= presets.length) return;
     onChoosePreset(presets[nextIndex]);
-  }
+  }, [activeIndex, onChoosePreset, presets]);
 
-  function runPrimary() {
+  const runPrimary = useCallback(() => {
     if (primaryDisabled || !preset) return;
     if (isDocument) {
       onRunDocument();
@@ -129,7 +137,7 @@ export function StageView({
       return;
     }
     onRunPrompt(preset.prompt, false);
-  }
+  }, [isDocument, isMultiTurn, nextMultiTurnStep, onRunDocument, onRunPrompt, preset, primaryDisabled]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -169,7 +177,7 @@ export function StageView({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeIndex, drawer, isMultiTurn, nextMultiTurnStep, onChoosePreset, onReset, presets, primaryDisabled]);
+  }, [chooseRelative, drawer, isMultiTurn, onChoosePreset, onReset, presets, runPrimary]);
 
   const disclosureObserved = evaluation?.disclosureObserved ?? false;
   const canaryState = evaluation ? (evaluation.canaryLeaked ? "DETECTED" : "NO") : "NOT RUN";
@@ -198,7 +206,7 @@ export function StageView({
 
       <section className={styles.mainGrid}>
         <article className={`${styles.panel} ${styles.attackPanel}`}>
-          <span className={styles.kicker}>{isDocument ? "UNTRUSTED DOCUMENT" : isMultiTurn ? "CURRENT TURN" : "ATTACK PROMPT"}</span>
+          <span className={styles.kicker}>{isDocument ? "UNTRUSTED DOCUMENT" : isMultiTurn ? "CURRENT TURN" : preset?.category === "control" ? "CONTROL PROMPT" : "ATTACK PROMPT"}</span>
           <div>
             <h2>{preset?.title ?? "—"}</h2>
             <p className={styles.description}>{preset?.shortDescription ?? ""}</p>
@@ -218,7 +226,7 @@ export function StageView({
             <div className={styles.connection}><i /> {modelId || "MODEL NOT CONFIGURED"}</div>
           </div>
           <div className={styles.conversation} aria-live="polite">
-            {messageRows.length === 0 ? <div className={styles.empty}><div className={styles.emptyIcon}>◌</div><p>Сценарий готов. Запустите атаку и смотрите только на то, что модель реально сделает в этом прогоне.</p></div> : messageRows.map((message, index) => {
+            {messageRows.length === 0 ? <div className={styles.empty}><div className={styles.emptyIcon}>◌</div><p>Сценарий готов. Запустите его и смотрите только на то, что модель реально сделает в этом прогоне.</p></div> : messageRows.map((message, index) => {
               const isLatest = index === latestAssistantIndex && message.role === "assistant";
               return <article key={`${message.role}-${index}`} className={`${styles.message} ${message.role === "user" ? styles.messageUser : ""} ${isLatest ? styles.messageLatest : ""}`}>
                 <span className={styles.messageLabel}>{message.role === "user" ? "USER" : profile?.assistantLabel?.toUpperCase() ?? "ASSISTANT"}</span>
@@ -254,11 +262,12 @@ export function StageView({
         <button className={`${styles.controlButton} ${styles.primary}`} type="button" onClick={runPrimary} disabled={primaryDisabled}>{primaryLabel}</button>
         <button className={styles.controlButton} type="button" onClick={() => chooseRelative(1)} disabled={activeIndex >= presets.length - 1}>NEXT →</button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("system")}>SYSTEM <span className={styles.hotkey}>S</span></button>
+        <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("tools")}>TOOLS <span className={styles.hotkey}>T</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("why")}>WHY? <span className={styles.hotkey}>W</span></button>
         <button className={`${styles.controlButton} ${styles.utility}`} type="button" onClick={() => setDrawer("debug")}>DEBUG <span className={styles.hotkey}>D</span></button>
       </nav>
 
-      {requiresNativeTools && !hasConfiguredNativeModel && <div className={styles.errorBanner}><strong>MODEL CAPABILITY</strong><span>No native tool-capable model is configured. This scenario is blocked without emulation.</span></div>}
+      {requiresNativeTools && !toolsAvailable && <div className={styles.errorBanner}><strong>MODEL CAPABILITY</strong><span>{hasConfiguredNativeModel ? "Этот сценарий требует native tools. Выберите tool-capable model." : "No native tool-capable model is configured. This scenario is blocked without emulation."}</span></div>}
       {error && <div className={styles.errorBanner}><strong>REQUEST FAILED</strong><span>{error}</span><button type="button" onClick={onRetry} disabled={isSending}>Retry</button></div>}
 
       {drawer && <div className={styles.drawerBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer(undefined); }}>
