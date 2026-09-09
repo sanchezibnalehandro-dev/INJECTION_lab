@@ -60,6 +60,7 @@
 .scenario { min-width: 0; text-align: center; }
 .scenarioIndex { color: var(--stage-muted); font: 700 10px/1 ui-monospace, Consolas, monospace; letter-spacing: .12em; }
 .scenario h1 { margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(18px, 1.7vw, 30px); line-height: 1.05; letter-spacing: .035em; text-transform: uppercase; }
+.scenarioOriginal { display: block; margin-top: 3px; overflow: hidden; color: var(--stage-muted); text-overflow: ellipsis; white-space: nowrap; font: 700 9px/1.15 ui-monospace, Consolas, monospace; letter-spacing: .06em; }
 
 .topActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .modelSelect { display: grid; gap: 3px; color: var(--stage-muted); font: 700 8px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
@@ -76,7 +77,8 @@
 .attackPanel { padding: clamp(13px, 1.2vw, 20px); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
 .kicker { color: var(--stage-magenta); font: 800 10px/1 ui-monospace, Consolas, monospace; letter-spacing: .13em; text-transform: uppercase; }
 .attackPanel h2 { margin: 0; font-size: clamp(20px, 1.7vw, 31px); line-height: 1.05; letter-spacing: .02em; }
-.description { color: #c6d8de; font-size: clamp(12px, .92vw, 16px); line-height: 1.42; max-width: 58ch; }
+.originalTerm { margin: 5px 0 0; color: var(--stage-muted); font: 700 10px/1.25 ui-monospace, Consolas, monospace; letter-spacing: .06em; }
+.description { margin: 7px 0 0; color: #c6d8de; font-size: clamp(12px, .92vw, 16px); line-height: 1.42; max-width: 58ch; }
 .promptBox { min-height: 0; overflow: auto; margin: 0; padding: 13px 14px; color: #d9f0f2; border: 1px solid rgba(236, 91, 191, .28); background: rgba(2, 7, 12, .57); white-space: pre-wrap; overflow-wrap: anywhere; font: clamp(11px, .8vw, 14px)/1.48 ui-monospace, Consolas, monospace; }
 .promptMeta { display: flex; justify-content: space-between; gap: 12px; color: var(--stage-muted); font: 700 9px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .turnProgress { display: flex; gap: 5px; align-items: center; }
