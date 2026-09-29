@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AttackPreset, AttackSuite, ConversationMessage, DebugEvent, DemoProfile, DisclosureEvaluation, ModelDefinition, ProviderDefinition } from "@/lib/domain/types";
 import styles from "./StageView.module.css";
+import { AttackFlow } from "./AttackFlow";
 
 type DrawerKind = "system" | "tools" | "why" | "debug";
 
@@ -334,14 +335,18 @@ export function StageView({
             })}
           </div>
           <div className={styles.toolFlow}>
-            <span className={styles.toolFlowLabel}>ВЫЗОВ ИНСТРУМЕНТОВ</span>
-            {!lastToolRequest || lastToolRequest.type !== "tool_requested" ? <span className={styles.noToolFlow}>{profile?.tools.length ? "В этом запуске модель ещё не вызвала инструмент." : "В этом сценарии инструменты не предоставлены."}</span> : <div className={styles.toolSequence}>
-              <span className={styles.toolNode}>МОДЕЛЬ</span><b>↓</b>
-              <span className={styles.toolNode}>{lastToolRequest.tool}({lastToolRequest.argumentsJson === "{}" ? "{}" : lastToolRequest.argumentsJson})</span><b>↓</b>
-              <span className={`${styles.toolNode} ${styles.toolNodeResult}`}>РЕЗУЛЬТАТ ИНСТРУМЕНТА<small>{lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : "Ожидание результата"}</small></span><b>↓</b>
-              <span className={styles.toolNode}>ФИНАЛЬНЫЙ ОТВЕТ</span>
-            </div>}
-          </div>
+  <AttackFlow
+    presetId={preset?.id}
+    isSending={isSending}
+    hasEvaluation={Boolean(evaluation)}
+    disclosureObserved={disclosureObserved}
+    multiTurnStepIndex={multiTurnStepIndex}
+    multiTurnTotal={multiTurnTotal}
+    toolName={lastToolRequest?.type === "tool_requested" ? lastToolRequest.tool : undefined}
+    toolResultSummary={lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : undefined}
+    hasGrantedTools={Boolean(profile?.tools.length)}
+  />
+</div>
         </article>
       </section>
 
