@@ -24,6 +24,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("src/components/StageView.tsx")
           text = path.read_text(encoding="utf-8")
@@ -35,17 +36,7 @@ jobs:
                   raise SystemExit("StageView import anchor not found")
               text = text.replace(import_line, import_line + "\n" + attack_import, 1)
 
-          old = '''          <div className={styles.toolFlow}>
-            <span className={styles.toolFlowLabel}>ВЫЗОВ ИНСТРУМЕНТОВ</span>
-            {!lastToolRequest || lastToolRequest.type !== "tool_requested" ? <span className={styles.noToolFlow}>{profile?.tools.length ? "В этом запуске модель ещё не вызвала инструмент." : "В этом сценарии инструменты не предоставлены."}</span> : <div className={styles.toolSequence}>
-              <span className={styles.toolNode}>МОДЕЛЬ</span><b>↓</b>
-              <span className={styles.toolNode}>{lastToolRequest.tool}({lastToolRequest.argumentsJson === "{}" ? "{}" : lastToolRequest.argumentsJson})</span><b>↓</b>
-              <span className={`${styles.toolNode} ${styles.toolNodeResult}`}>РЕЗУЛЬТАТ ИНСТРУМЕНТА<small>{lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : "Ожидание результата"}</small></span><b>↓</b>
-              <span className={styles.toolNode}>ФИНАЛЬНЫЙ ОТВЕТ</span>
-            </div>}
-          </div>'''
-
-          new = '''          <div className={styles.toolFlow}>
+          new_block = '''          <div className={styles.toolFlow}>
             <AttackFlow
               presetId={preset?.id}
               isSending={isSending}
@@ -59,11 +50,14 @@ jobs:
             />
           </div>'''
 
-          if old not in text:
-              if "<AttackFlow" not in text:
-                  raise SystemExit("StageView tool-flow anchor not found")
-          else:
-              text = text.replace(old, new, 1)
+          if "<AttackFlow" not in text:
+              pattern = re.compile(
+                  r'          <div className=\{styles\.toolFlow\}>\n.*?          </div>\n        </article>',
+                  re.S,
+              )
+              text, count = pattern.subn(new_block + "\n        </article>", text, count=1)
+              if count != 1:
+                  raise SystemExit(f"StageView tool-flow anchor replacement count: {count}")
 
           path.write_text(text, encoding="utf-8")
           PY
