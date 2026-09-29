@@ -1,0 +1,98 @@
+name: Integrate Stage Attack Flow
+
+on:
+  push:
+    branches:
+      - stage-attack-flow
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage-attack-flow
+          fetch-depth: 0
+
+      - name: Integrate AttackFlow into StageView
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/StageView.tsx")
+          text = path.read_text(encoding="utf-8")
+
+          import_line = 'import styles from "./StageView.module.css";'
+          attack_import = 'import { AttackFlow } from "./AttackFlow";'
+          if attack_import not in text:
+              if import_line not in text:
+                  raise SystemExit("StageView import anchor not found")
+              text = text.replace(import_line, import_line + "\n" + attack_import, 1)
+
+          old = '''          <div className={styles.toolFlow}>
+            <span className={styles.toolFlowLabel}>ВЫЗОВ ИНСТРУМЕНТОВ</span>
+            {!lastToolRequest || lastToolRequest.type !== "tool_requested" ? <span className={styles.noToolFlow}>{profile?.tools.length ? "В этом запуске модель ещё не вызвала инструмент." : "В этом сценарии инструменты не предоставлены."}</span> : <div className={styles.toolSequence}>
+              <span className={styles.toolNode}>МОДЕЛЬ</span><b>↓</b>
+              <span className={styles.toolNode}>{lastToolRequest.tool}({lastToolRequest.argumentsJson === "{}" ? "{}" : lastToolRequest.argumentsJson})</span><b>↓</b>
+              <span className={`${styles.toolNode} ${styles.toolNodeResult}`}>РЕЗУЛЬТАТ ИНСТРУМЕНТА<small>{lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : "Ожидание результата"}</small></span><b>↓</b>
+              <span className={styles.toolNode}>ФИНАЛЬНЫЙ ОТВЕТ</span>
+            </div>}
+          </div>'''
+
+          new = '''          <div className={styles.toolFlow}>
+            <AttackFlow
+              presetId={preset?.id}
+              isSending={isSending}
+              hasEvaluation={Boolean(evaluation)}
+              disclosureObserved={disclosureObserved}
+              multiTurnStepIndex={multiTurnStepIndex}
+              multiTurnTotal={multiTurnTotal}
+              toolName={lastToolRequest?.type === "tool_requested" ? lastToolRequest.tool : undefined}
+              toolResultSummary={lastToolResult?.type === "tool_result" ? summarizeToolResult(lastToolResult.result) : undefined}
+              hasGrantedTools={Boolean(profile?.tools.length)}
+            />
+          </div>'''
+
+          if old not in text:
+              if "<AttackFlow" not in text:
+                  raise SystemExit("StageView tool-flow anchor not found")
+          else:
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit validated integration
+        shell: bash
+        run: |
+          rm .github/workflows/stage-attack-flow-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StageView.tsx src/components/AttackFlow.tsx src/components/AttackFlow.module.css .github/workflows/stage-attack-flow-patch.yml
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "Integrate visual attack flow into Stage Mode"
+          git push origin HEAD:stage-attack-flow
