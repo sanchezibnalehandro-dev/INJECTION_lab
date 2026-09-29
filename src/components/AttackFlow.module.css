@@ -1,0 +1,282 @@
+.wrap {
+  width: 100%;
+  min-width: 760px;
+  padding: 8px 2px 2px;
+  color: var(--stage-text, #eaf4f7);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.heading {
+  min-width: 0;
+}
+
+.heading > span {
+  display: block;
+  color: var(--stage-cyan, #57e7ed);
+  font: 900 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .13em;
+}
+
+.heading > small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--stage-muted, #8ea7b2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 10px/1.2 ui-monospace, Consolas, monospace;
+}
+
+.status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(142, 167, 178, .22);
+  color: var(--stage-muted, #8ea7b2);
+  background: rgba(142, 167, 178, .035);
+  font: 900 8px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .09em;
+}
+
+.status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.status_busy { color: var(--stage-amber, #f4bb58); border-color: rgba(244, 187, 88, .28); }
+.status_clean { color: var(--stage-success, #6ef2b4); border-color: rgba(110, 242, 180, .28); }
+.status_leak { color: var(--stage-danger, #ff857b); border-color: rgba(255, 133, 123, .38); }
+.status_ready { color: var(--stage-cyan, #57e7ed); border-color: rgba(87, 231, 237, .24); }
+
+.canvas {
+  position: relative;
+  height: 112px;
+  overflow: hidden;
+  border-top: 1px solid rgba(126, 187, 209, .1);
+  border-bottom: 1px solid rgba(126, 187, 209, .1);
+  background:
+    linear-gradient(90deg, rgba(87, 231, 237, .035) 1px, transparent 1px),
+    linear-gradient(rgba(87, 231, 237, .035) 1px, transparent 1px),
+    rgba(2, 7, 12, .26);
+  background-size: 40px 40px;
+}
+
+.wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edge {
+  fill: none;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity .25s ease, stroke .25s ease, filter .25s ease;
+}
+
+.edgePreview {
+  stroke: rgba(87, 231, 237, .42);
+  stroke-dasharray: 5 5;
+}
+
+.edgeActive {
+  stroke: var(--stage-cyan, #57e7ed);
+  stroke-width: 1.9;
+  stroke-dasharray: 8 5;
+  filter: drop-shadow(0 0 4px rgba(87, 231, 237, .75));
+  animation: dash 1.1s linear infinite;
+}
+
+.edgeDone {
+  stroke: rgba(87, 231, 237, .68);
+}
+
+.edgeClean {
+  stroke: var(--stage-success, #6ef2b4);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 5px rgba(110, 242, 180, .7));
+}
+
+.edgeLeak {
+  stroke: var(--stage-danger, #ff857b);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 6px rgba(255, 133, 123, .78));
+  animation: leakPulse 1s ease-in-out infinite alternate;
+}
+
+.edgeMuted {
+  stroke: rgba(142, 167, 178, .14);
+  stroke-dasharray: 4 6;
+}
+
+.arrowHead {
+  fill: rgba(87, 231, 237, .7);
+}
+
+.packet {
+  fill: #eaffff;
+  filter: drop-shadow(0 0 4px rgba(87, 231, 237, 1));
+}
+
+.node {
+  position: absolute;
+  z-index: 2;
+  width: clamp(76px, 9.4vw, 132px);
+  min-height: 42px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(142, 167, 178, .2);
+  background: rgba(6, 12, 20, .95);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .025);
+  text-align: center;
+  transition: opacity .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.node strong {
+  display: grid;
+  gap: 1px;
+  font: 900 clamp(7px, .55vw, 9px)/1.05 ui-monospace, Consolas, monospace;
+  letter-spacing: .055em;
+}
+
+.node small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--stage-muted, #8ea7b2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 7px/1 ui-monospace, Consolas, monospace;
+}
+
+.nodeTrusted {
+  border-color: rgba(87, 231, 237, .44);
+  color: #bffbfe;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22), inset 0 0 16px rgba(87, 231, 237, .055);
+}
+
+.nodeAttack {
+  border-color: rgba(236, 91, 191, .5);
+  color: #ffc2eb;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22), inset 0 0 16px rgba(236, 91, 191, .07);
+}
+
+.nodeData {
+  border-color: rgba(179, 136, 255, .48);
+  color: #dccaff;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22), inset 0 0 16px rgba(179, 136, 255, .065);
+}
+
+.nodeModel {
+  border-color: rgba(244, 187, 88, .5);
+  color: #ffe2a8;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22), inset 0 0 18px rgba(244, 187, 88, .075);
+}
+
+.nodeNeutral {
+  border-color: rgba(142, 167, 178, .3);
+  color: var(--stage-text, #eaf4f7);
+}
+
+.nodeClean {
+  border-color: rgba(110, 242, 180, .68);
+  color: var(--stage-success, #6ef2b4);
+  box-shadow: 0 0 16px rgba(110, 242, 180, .14), inset 0 0 18px rgba(110, 242, 180, .075);
+}
+
+.nodeLeak {
+  border-color: rgba(255, 133, 123, .82);
+  color: #ffd0cb;
+  box-shadow: 0 0 18px rgba(255, 133, 123, .18), inset 0 0 18px rgba(255, 133, 123, .09);
+  animation: nodeLeakPulse 1s ease-in-out infinite alternate;
+}
+
+.nodeDimmed {
+  opacity: .35;
+}
+
+.meta {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+  overflow: hidden;
+  color: var(--stage-muted, #8ea7b2);
+  white-space: nowrap;
+  font: 8px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .03em;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.meta i {
+  width: 14px;
+  height: 2px;
+  display: inline-block;
+}
+
+.legendPreview {
+  background: var(--stage-cyan, #57e7ed);
+  opacity: .45;
+}
+
+.legendAttack {
+  background: var(--stage-magenta, #ec5bbf);
+}
+
+.metaAccent {
+  color: var(--stage-amber, #f4bb58);
+}
+
+.metaResult {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--stage-success, #6ef2b4);
+  text-overflow: ellipsis;
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: -26; }
+}
+
+@keyframes leakPulse {
+  from { opacity: .72; }
+  to { opacity: 1; }
+}
+
+@keyframes nodeLeakPulse {
+  from { transform: translate(-50%, -50%) scale(1); }
+  to { transform: translate(-50%, -50%) scale(1.025); }
+}
+
+@media (max-width: 1100px) {
+  .wrap { min-width: 680px; }
+  .canvas { height: 104px; }
+  .node { width: 84px; padding-inline: 6px; }
+}
