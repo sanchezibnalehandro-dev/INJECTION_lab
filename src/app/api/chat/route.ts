@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 function publicError(error: unknown): { status: number; code: string; message: string } {
   if (error instanceof ProviderConfigurationError) return { status: 422, code: "provider_not_configured", message: error.message };
-  if (error instanceof ProviderApiError) return { status: error.status && error.status >= 400 && error.status < 600 ? error.status : 502, code: `${error.provider}_${error.code}`, message: `${error.provider} API request failed${error.status ? ` with HTTP ${error.status}` : ""} (${error.code}).` };
+  if (error instanceof ProviderApiError) return { status: error.status && error.status >= 400 && error.status < 600 ? error.status : 502, code: `${error.provider}_${error.code}`, message: error.detail || `${error.provider} API request failed${error.status ? ` with HTTP ${error.status}` : ""} (${error.code}).` };
   if (error instanceof ProviderTimeoutError) return { status: 504, code: "provider_timeout", message: "The provider did not respond within the demo timeout." };
   if (error instanceof Error && /system|request body|message|provider|model/i.test(error.message)) return { status: 400, code: "invalid_request", message: error.message };
   if (error instanceof DOMException && error.name === "TimeoutError") return { status: 504, code: "provider_timeout", message: "The provider did not respond within the demo timeout." };
