@@ -1,4 +1,4 @@
-export const PROVIDER_IDS = ["openai", "deepseek", "gigachat"] as const;
+export const PROVIDER_IDS = ["openai", "openrouter", "deepseek", "gigachat"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export type ClientMessageRole = "user" | "assistant" | "tool";
