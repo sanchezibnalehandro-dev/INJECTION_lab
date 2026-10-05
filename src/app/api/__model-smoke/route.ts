@@ -33,7 +33,6 @@ export async function GET(request: Request) {
       model,
       latencyMs: Date.now() - startedAt,
       response: result.message.content.slice(0, 120),
-      resolvedModelId: [...result.debugEvents].reverse().find((event) => event.type === "response" && event.resolvedModelId)?.resolvedModelId,
     });
   } catch (error) {
     const value = error as { message?: string; status?: number; code?: string };
