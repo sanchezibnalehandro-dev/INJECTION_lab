@@ -92,3 +92,4 @@ The approved Markdown fixture is hash-locked in automated tests. Structured Atta
 
 On Vercel, an unconfigured GigaChat provider is hidden from the public UI; OpenAI remains available when `OPENAI_API_KEY` is configured. The public comparison list can be controlled with `OPENAI_MODELS`; the current deployment uses the full six-model comparison set. Local GigaChat support is unchanged.
 
+OpenRouter preview branch adds Qwen and DeepSeek as separate comparison models without changing the existing OpenAI or local GigaChat flows.
