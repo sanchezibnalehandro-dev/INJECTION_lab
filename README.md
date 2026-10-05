@@ -90,5 +90,5 @@ All six profiles use the official OpenAI Responses API. `gpt-3.5-turbo` has no n
 The approved Markdown fixture is hash-locked in automated tests. Structured Attack and Internal Auditor each retain both source variants; all three multi-turn sequences preserve exact turn order. Tests fail if the source bytes, `sourceExactPrompt`, deterministic `runtimePrompt`, `12/1/1` profile mapping, grants, or document assembly drift.
 ## Web deployment
 
-On Vercel, an unconfigured GigaChat provider is hidden from the public UI; OpenAI remains available when `OPENAI_API_KEY` is configured. Local GigaChat support is unchanged.
+On Vercel, an unconfigured GigaChat provider is hidden from the public UI; OpenAI remains available when `OPENAI_API_KEY` is configured. The public comparison list can be controlled with `OPENAI_MODELS`; the current deployment uses the full six-model comparison set. Local GigaChat support is unchanged.
 
