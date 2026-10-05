@@ -75,7 +75,8 @@ export const openRouterAdapter: LLMProviderAdapter = {
     const root = asRecord(body);
     if (!response.ok) {
       const errorRecord = asRecord(root.error);
-      throw new ProviderApiError("openrouter", response.status, safeApiCode(errorRecord.code));
+      const detail = typeof errorRecord.message === "string" ? errorRecord.message.slice(0, 500) : undefined;
+      throw new ProviderApiError("openrouter", response.status, safeApiCode(errorRecord.code), detail);
     }
 
     const choice = asRecord(Array.isArray(root.choices) ? root.choices[0] : undefined);
