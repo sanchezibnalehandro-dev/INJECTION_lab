@@ -11,6 +11,11 @@ export const OPENAI_COMPARISON_MODEL_IDS = [
 
 type OpenAIComparisonModelId = (typeof OPENAI_COMPARISON_MODEL_IDS)[number];
 
+const OPENROUTER_MODELS = [
+  { id: "qwen/qwen3.8-27b:free", displayName: "Qwen 3.8 27B · Free" },
+  { id: "deepseek/deepseek-chat:free", displayName: "DeepSeek V3 · Free" },
+] as const;
+
 const TEXT_ONLY_CAPABILITIES: ModelCapabilities = {
   tools: "unavailable",
   structuredOutput: "unavailable",
@@ -47,6 +52,23 @@ function modelDefinition(id: OpenAIComparisonModelId): ModelDefinition {
     displayName: id,
     providerId: "openai",
     capabilities: OPENAI_MODEL_CAPABILITIES[id],
+  };
+}
+
+function openRouterProvider(): ProviderDefinition {
+  const models: ModelDefinition[] = OPENROUTER_MODELS.map(({ id, displayName }) => ({
+    id,
+    displayName,
+    providerId: "openrouter",
+    capabilities: NATIVE_TOOL_CAPABILITIES,
+  }));
+  return {
+    id: "openrouter",
+    displayName: "OpenRouter",
+    defaultModelId: models[0].id,
+    models,
+    configured: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
+    configurationHint: "Configure OPENROUTER_API_KEY on the server.",
   };
 }
 
@@ -119,9 +141,12 @@ export function getProviderCatalog(): ProviderDefinition[] {
     configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
     configurationHint: "Configure OPENAI_API_KEY on the server.",
   };
+  const openRouter = openRouterProvider();
   const gigaChat = gigaChatProvider();
   const hideUnconfiguredGigaChatOnVercel = Boolean(process.env.VERCEL) && !gigaChat.configured;
-  return hideUnconfiguredGigaChatOnVercel ? [openAIProvider] : [gigaChat, openAIProvider];
+  return hideUnconfiguredGigaChatOnVercel
+    ? [openAIProvider, openRouter]
+    : [gigaChat, openAIProvider, openRouter];
 }
 
 export function findProviderModel(providerId: ProviderId, modelId: string): { provider: ProviderDefinition; model: ModelDefinition } | undefined {
