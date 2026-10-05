@@ -17,8 +17,9 @@ export class ProviderApiError extends Error {
     public readonly provider: ProviderId,
     public readonly status: number | undefined,
     public readonly code: string,
+    public readonly detail?: string,
   ) {
-    super(`${provider} API request failed${status ? ` with HTTP ${status}` : ""} (${code}).`);
+    super(detail || `${provider} API request failed${status ? ` with HTTP ${status}` : ""} (${code}).`);
     this.name = "ProviderApiError";
   }
 }
