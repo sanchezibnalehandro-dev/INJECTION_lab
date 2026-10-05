@@ -13,7 +13,7 @@ type OpenAIComparisonModelId = (typeof OPENAI_COMPARISON_MODEL_IDS)[number];
 
 const OPENROUTER_MODELS = [
   { id: "qwen/qwen3.8-27b:free", displayName: "Qwen 3.8 27B · Free" },
-  { id: "deepseek/deepseek-chat:free", displayName: "DeepSeek V3 · Free" },
+  { id: "deepseek/deepseek-chat-v3.1:free", displayName: "DeepSeek V3.1 · Free" },
 ] as const;
 
 const TEXT_ONLY_CAPABILITIES: ModelCapabilities = {
