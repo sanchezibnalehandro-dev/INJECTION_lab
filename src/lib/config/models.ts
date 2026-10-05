@@ -111,17 +111,17 @@ export function getProviderCatalog(): ProviderDefinition[] {
     : models.some((model) => model.id === "gpt-4o-mini")
       ? "gpt-4o-mini"
       : models[0].id;
-  return [
-    gigaChatProvider(),
-    {
-      id: "openai",
-      displayName: "OpenAI",
-      defaultModelId,
-      models,
-      configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
-      configurationHint: "Configure OPENAI_API_KEY on the server.",
-    },
-  ];
+  const openAIProvider: ProviderDefinition = {
+    id: "openai",
+    displayName: "OpenAI",
+    defaultModelId,
+    models,
+    configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    configurationHint: "Configure OPENAI_API_KEY on the server.",
+  };
+  const gigaChat = gigaChatProvider();
+  const hideUnconfiguredGigaChatOnVercel = Boolean(process.env.VERCEL) && !gigaChat.configured;
+  return hideUnconfiguredGigaChatOnVercel ? [openAIProvider] : [gigaChat, openAIProvider];
 }
 
 export function findProviderModel(providerId: ProviderId, modelId: string): { provider: ProviderDefinition; model: ModelDefinition } | undefined {
