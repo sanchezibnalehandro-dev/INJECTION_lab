@@ -1,7 +1,10 @@
 import type { ClientMessageRole, ConversationMessage, DemoProfileId, DocumentPresetId, ProviderId } from "@/lib/domain/types";
 import { PROVIDER_IDS } from "@/lib/domain/types";
 
-const CLIENT_ROLES = new Set<ClientMessageRole>(["user", "assistant", "tool"]);
+// Tool messages are server-created only. Accepting them from the browser lets a
+// caller forge tool results and contaminate prompt-injection experiment evidence.
+const CLIENT_ROLES = new Set<ClientMessageRole>(["user", "assistant"]);
+const MAX_TOTAL_MESSAGE_CHARACTERS = 32_000;
 
 export interface ValidatedChatPayload {
   providerId: ProviderId;
@@ -36,13 +39,18 @@ export function validateChatPayload(input: unknown): ValidatedChatPayload {
   if (record.profileId === "brian-document-analyzer" || record.profileId === "vulnerable-document-analyzer") invalid("The document analyzer is available only through the server-owned document flow.");
   if (!Array.isArray(record.messages) || record.messages.length > 40) invalid("Messages must be an array of at most 40 entries.");
 
+  // Bound the aggregate prompt size; per-message limits alone allow up to
+  // 40 × 12,000 characters in a single paid provider request.
+  let totalMessageCharacters = 0;
   const messages = record.messages.map((value): ConversationMessage => {
     if (!value || typeof value !== "object" || Array.isArray(value)) invalid("Every message must be an object.");
     const message = value as Record<string, unknown>;
     const allowed = new Set(["role", "content", "name", "toolCallId", "toolCalls"]);
     if (Object.keys(message).some((key) => !allowed.has(key))) invalid("Message contains unsupported fields.");
-    if (typeof message.role !== "string" || !CLIENT_ROLES.has(message.role as ClientMessageRole)) invalid("System and developer messages are server-controlled.");
+    if (typeof message.role !== "string" || !CLIENT_ROLES.has(message.role as ClientMessageRole)) invalid("System, developer, and tool messages are server-controlled.");
     if (typeof message.content !== "string" || message.content.length > 12000) invalid("Message content must be a string up to 12,000 characters.");
+    totalMessageCharacters += message.content.length;
+    if (totalMessageCharacters > MAX_TOTAL_MESSAGE_CHARACTERS) invalid("Conversation exceeds the 32,000-character demo limit. Reset context and try again.");
     if (message.name !== undefined && typeof message.name !== "string") invalid("Invalid tool name.");
     if (message.toolCallId !== undefined && typeof message.toolCallId !== "string") invalid("Invalid tool call ID.");
     if (message.toolCalls !== undefined) invalid("Client may not synthesize tool-call requests.");
