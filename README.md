@@ -1,13 +1,19 @@
 # INJECTION LAB
 
-Local, live-demo harness for comparing prompt-injection behavior across models. It is deliberately not a product security platform: there is no database, auth, user account, upload, persistence, or real corporate data.
+Local, authorized educational live-demo harness for comparing prompt-injection behavior across models. It is deliberately not a product security platform: there is no database, auth, user account, upload, persistence, real corporate data, or external-target exploitation. All leak canaries, records, environment values, documents, and demo tool results are synthetic.
+
+## Documentation map
+
+- **[PROJECT_STATUS.md](PROJECT_STATUS.md)** — current operational state, safety scope, Windows/GigaChat TLS note, demo invariants, and change policy. Read this first before modifying the live-demo path.
+- **[INJECTION_LAB_CODEX_HANDOFF.md](INJECTION_LAB_CODEX_HANDOFF.md)** — original architecture/build brief retained as historical context. Some early naming/provider/deployment assumptions are no longer current.
 
 ## Run locally
 
 1. Copy `.env.example` to `.env.local`.
-2. Configure `OPENAI_API_KEY`. The supplied six-model catalog is ready for live comparison; account access remains provider-controlled.
+2. Configure the provider credentials you actually need. For OpenAI, set `OPENAI_API_KEY`. For GigaChat, prefer `GIGACHAT_AUTHORIZATION_KEY` and keep `GIGACHAT_SCOPE=GIGACHAT_API_PERS`.
 3. Install dependencies with `npm install`.
-4. Start the local app with `npm run dev` and open the printed localhost URL.
+4. **Windows live-demo path with GigaChat: run `START_INJECTION_LAB.bat`.** It sets the project CA through `NODE_EXTRA_CA_CERTS` before Node starts and opens `http://localhost:3000`.
+5. For OpenAI-only/manual development, `npm run dev` is sufficient. For a manual GigaChat launch, set `NODE_EXTRA_CA_CERTS` before starting Node; putting it in `.env.local` is too late.
 
 For a production check, run:
 
